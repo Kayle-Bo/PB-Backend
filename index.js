@@ -33,57 +33,42 @@ server.listen(3001, () => {
 
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
-    io.sockets.adapter.rooms.forEach((users, key) => {
-        if(key == socket.id){
-            io.sockets.adapter.rooms.delete(key)
-            console.log(io.sockets.adapter.rooms)
-
-        }
-        if(io.sockets.adapter.rooms.size > 0){
-            console.log(users.size)
-            console.log("non empty")
-        }
-    });
+    let users = new Map(io.sockets.adapter.sids);
+    let rooms = new Map(io.sockets.adapter.rooms);
+    let nonMatches = new Map([...users].filter(([key]) => !rooms.has(key)));
+    actualRooms = new Map([...nonMatches, ...rooms].filter(([key]) => !users.has(key)));
+    console.log("nonMatches")
+    console.log(nonMatches)
+    //let actualRooms = getNonMatches(users, rooms)
+    //console.log(actualRooms)
     
-    socket.on("find_battle", (data) => {
-        if(io.sockets.adapter.rooms.size <= 0){
-            let room = generateRandomString();
-            socket.join(room);
-            console.log(`User with ID: ${socket.id} joined room: ${room}`);
-            console.log(io.sockets.adapter.rooms)
-            let message = `${socket.id} joined`;
-            socket.to(room).emit("receive_message", message);
-        }
-        else{
-            io.sockets.adapter.rooms.forEach((users, key) => {
-                if(users.size == 1){
-                    socket.join(key);
-                    console.log(`User with ID: ${socket.id} joined room: ${key}`);
-                    console.log(io.sockets.adapter.rooms)
-                    let message = `${socket.id} joined`;
-                    socket.to(key).emit("receive_message", message);
-                }
-                else{
-                    let room = generateRandomString();
-                    socket.join(room);
-                    console.log(`User with ID: ${socket.id} joined room: ${room}`);
-                    console.log(io.sockets.adapter.rooms)
-                    let message = `${socket.id} joined`;
-                    socket.to(room).emit("receive_message", message);
-                }
-            });
-        }
-        
+    socket.on("create_battle", () => {
+
+        let battleId = generateRandomString();
+        socket.emit("battle_created", battleId);
+
     });
 
-    socket.on("join_room", (room) => {
-        socket.join(room);
-        console.log(`User with ID: ${socket.id} joined room: ${room}`);
-        console.log(io.sockets.adapter.rooms)
-        
+    socket.on("get_rooms", () => {
+        console.log("get_rooms")
+        console.log(new Map(io.sockets.adapter.rooms));
+    });
 
-        let message = `${socket.id} joined`;
-        socket.to(room).emit("receive_message", message);
+    socket.on("join_room", ({roomId, userId}) => {
+        console.log(`User with ID: ${userId} joined room: ${roomId}`);
+
+        // Emit that the room has been created with the id of the room
+        io.emit("room_created", roomId);
+        // Emit that the user has joined the room with the id of the user
+        io.emit("user_joined", userId);
+    });
+
+    socket.on("old_user", (userId) => {
+        io.emit("existing_user", userId);
+    });
+
+    socket.on("room_filled", (room) => {
+        io.emit("room_remove", room);
     });
 
     socket.on("disconenct", () => {
