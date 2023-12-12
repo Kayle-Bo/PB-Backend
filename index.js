@@ -13,6 +13,7 @@ const io = new Server(server, {
     cors: {
         origin: '*',
         methods: ['GET', 'POST'],
+        rejectUnauthorized: false,
     },
 });
 
@@ -39,17 +40,27 @@ const createUser = (usetDto) => {
 
 }
 
-// Create connection to database
+// Create connection to docker database
 const db = mysql.createConnection({
-    host: 'localhost',
+    host: 'PokeBattle',
     user: 'root',
-    password: '',
-    database: 'PokeBattle',
+    password: 'admin',
+    database: 'pokebattle'
 });
+
+
+// // Create connection to database
+// const db = mysql.createConnection({
+//     host: 'localhost',
+//     user: 'root',
+//     password: '',
+//     database: 'PokeBattle',
+// });
 
 // Connect to database
 db.connect((err) => {
     if (err) {
+        console.log("NO DATABASE ")
         throw err;
     }
     console.log('Connected to database');
