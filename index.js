@@ -6,6 +6,9 @@ const cors = require('cors');
 app.use(cors());
 const mysql = require('mysql');
 const { register } = require('module');
+const { createConnection } = require('net');
+const typeorm = require("typeorm")
+
 
 const server = http.createServer(app);
 
@@ -17,54 +20,18 @@ const io = new Server(server, {
     },
 });
 
-class userdto {
-    constructor(username, password) {
-        this.username = username;
-        this.password = password;
-    }
-}
+var dataSource = new typeorm.DataSource({
+    type: "mysql",
+    host: "localhost",
+    port: 3306,
+    username: "root",
+    password: "",
+    database: "pokebattle",
+    entities: [require("./entities/user.js"), require("./entities/role.js")],
+    synchronize: true,
+    logging: false,
+})
 
-const createUser = (usetDto) => {
-    db.query(`INSERT INTO users username, password 
-    VALUES ('${user.username}', '${user.password}')
-    `, (err, result) => {
-      try { 
-        console.log("RESULT IS FROM DATABASE LONG NAME TO SEE")
-        console.log(result);
-      } catch (err) {
-        console.log(err);
-        // If there was an error, return 0
-        cb('0');
-      }
-    });
-
-}
-
-// Create connection to docker database
-const db = mysql.createConnection({
-    host: 'PokeBattle',
-    user: 'root',
-    password: 'admin',
-    database: 'pokebattle'
-});
-
-
-// // Create connection to database
-// const db = mysql.createConnection({
-//     host: 'localhost',
-//     user: 'root',
-//     password: '',
-//     database: 'PokeBattle',
-// });
-
-// Connect to database
-db.connect((err) => {
-    if (err) {
-        console.log("NO DATABASE ")
-        throw err;
-    }
-    console.log('Connected to database');
-});
 
 // Generate a random string of length 16
 function generateRandomString() {
@@ -84,96 +51,97 @@ server.listen(3001, () => {
     console.log('listening on *:3001');
 });
 
-// On connection
-io.on('connection', (socket) => {
+dataSource.initialize().then(function(){
 
-    console.log(`User connected: ${socket.id}`);
-    let users = new Map(io.sockets.adapter.sids);
-    let rooms = new Map(io.sockets.adapter.rooms);
-    let nonMatches = new Map([...users].filter(([key]) => !rooms.has(key)));
-    actualRooms = new Map([...nonMatches, ...rooms].filter(([key]) => !users.has(key)));
-    console.log("nonMatches")
-    console.log(nonMatches)
-    //let actualRooms = getNonMatches(users, rooms)
-    //console.log(actualRooms)
+    // On connection
+    io.on('connection', (socket) => {
 
-    socket.on("register_user", (user, cb) =>{
-        db.query(`INSERT INTO users (username, password, email) VALUES ('${user.username}', '${user.password}', '${user.email}')`, (err, result) => {
-            try {
-                if(result != null){
-                    cb('1');
+        console.log(`User connected: ${socket.id}`);
+        let users = new Map(io.sockets.adapter.sids);
+        let rooms = new Map(io.sockets.adapter.rooms);
+        let nonMatches = new Map([...users].filter(([key]) => !rooms.has(key)));
+        actualRooms = new Map([...nonMatches, ...rooms].filter(([key]) => !users.has(key)));
+        console.log("nonMatches")
+        console.log(nonMatches)
+        //let actualRooms = getNonMatches(users, rooms)
+        //console.log(actualRooms)
+
+        socket.on("register_user", (user, cb) =>{
+            var userRepository = dataSource.getRepository("user");
+            userRepository.save(user);
+
+        });
+
+        socket.on("login_user", (user, cb) => {
+            console.log(user)
+            var userRepository = dataSource.getRepository("user");
+            userRepository.findOneBy({username: user.username}).then(function(user){
+                if(user != null){
+                    userRepository.findOneBy({username: user.username, password: user.password}).then(function(user){
+                        if(user != null){
+                            userDTO = {
+                                id: user.id,
+                                username: user.username,
+                                email: user.email,
+                                wins: user.wins,
+                                losses: user.losses
+                            }
+                            cb(userDTO);
+                        }
+                        else{
+                            cb('0');
+                        }
+                    })
                 }
                 else{
                     cb('0');
                 }
-            } catch (err) {
-                console.log(err);
-                // If there was an error, return 0
-                cb('0');
-            }
+            })
         });
-    });
 
-    socket.on("login_user", (user, cb) => {
-        db.query(`SELECT username FROM users WHERE username = '${user.username}' AND password = '${user.password}'`, (err, result) => {
-            try {
-                if(result != null){
-                    cb(result[0].username);
-                }
-                else{
-                    cb('0');
-                }
-            } catch (err) {
-                console.log(err);
-                // If there was an error, return 0
-                cb('0');
-            }
+
+
+
+        socket.on("create_battle", () => {
+            let battleId = generateRandomString();
+            socket.emit("battle_created", battleId);
+
         });
-    });
 
+        socket.on("get_rooms", () => {
+            console.log("get_rooms")
+            console.log(new Map(io.sockets.adapter.rooms));
+        });
 
+        socket.on("join_room", ({ roomId, userId }) => {
+            console.log(`User with ID: ${userId} joined room: ${roomId}`);
 
+            // Emit that the room has been created with the id of the room
+            io.emit("room_created", roomId);
+            // Emit that the user has joined the room with the id of the user
+            io.emit("user_joined", userId);
+        });
 
-    socket.on("create_battle", () => {
-        let battleId = generateRandomString();
-        socket.emit("battle_created", battleId);
+        socket.on("old_user", (userId) => {
+            io.emit("existing_user", userId);
+        });
 
-    });
+        socket.on("room_filled", (room) => {
+            io.emit("room_remove", room);
+        });
 
-    socket.on("get_rooms", () => {
-        console.log("get_rooms")
-        console.log(new Map(io.sockets.adapter.rooms));
-    });
+        socket.on("disconenct", () => {
+            console.log(`User disconnected: ${socket.id}`);
 
-    socket.on("join_room", ({ roomId, userId }) => {
-        console.log(`User with ID: ${userId} joined room: ${roomId}`);
+            let message = `User: ${socket.id} left`;
+            socket.to(data).emit("receive_message", message);
+        });
 
-        // Emit that the room has been created with the id of the room
-        io.emit("room_created", roomId);
-        // Emit that the user has joined the room with the id of the user
-        io.emit("user_joined", userId);
-    });
+        socket.on('send_message', (data) => {
+            let message = `${data.userId}: ${data.message}`;
+            socket.to(data.room).emit('receive_message', message);
+        });
 
-    socket.on("old_user", (userId) => {
-        io.emit("existing_user", userId);
-    });
-
-    socket.on("room_filled", (room) => {
-        io.emit("room_remove", room);
-    });
-
-    socket.on("disconenct", () => {
-        console.log(`User disconnected: ${socket.id}`);
-
-        let message = `User: ${socket.id} left`;
-        socket.to(data).emit("receive_message", message);
-    });
-
-    socket.on('send_message', (data) => {
-        let message = `${data.userId}: ${data.message}`;
-        socket.to(data.room).emit('receive_message', message);
-    });
-
+    })
 })
-
 
