@@ -6,7 +6,6 @@ const cors = require('cors');
 app.use(cors());
 const mysql = require('mysql');
 const { register } = require('module');
-const { createConnection } = require('net');
 const typeorm = require("typeorm")
 
 
@@ -59,12 +58,6 @@ dataSource.initialize().then(function(){
     io.on('connection', (socket) => {
 
         console.log(`User connected: ${socket.id}`);
-        let users = new Map(io.sockets.adapter.sids);
-        let rooms = new Map(io.sockets.adapter.rooms);
-        let nonMatches = new Map([...users].filter(([key]) => !rooms.has(key)));
-        actualRooms = new Map([...nonMatches, ...rooms].filter(([key]) => !users.has(key)));
-        //let actualRooms = getNonMatches(users, rooms)
-        //console.log(actualRooms)
 
         socket.on("register_user", (user, cb) =>{
             var userRepository = dataSource.getRepository("user");
@@ -106,8 +99,8 @@ dataSource.initialize().then(function(){
             }
             battleRooms.push(battleRoom);
             cb(battleId);
+            io.emit("rooms_updated", battleRooms);
 
-            console.log(battleRooms);
         });
 
         socket.on("get_rooms", (cb) => {
@@ -133,6 +126,8 @@ dataSource.initialize().then(function(){
             }
             // Emit that the user has joined the room with the id of the user
             io.emit("user_joined", user);
+            io.emit("rooms_updated", battleRooms);
+
         });
 
         socket.on("get_room_users", (roomId, cb) => {
