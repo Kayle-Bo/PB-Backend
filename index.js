@@ -20,6 +20,8 @@ const io = new Server(server, {
     },
 });
 
+let battleRooms = [];
+
 var dataSource = new typeorm.DataSource({
     type: "mysql",
     host: "localhost",
@@ -61,19 +63,16 @@ dataSource.initialize().then(function(){
         let rooms = new Map(io.sockets.adapter.rooms);
         let nonMatches = new Map([...users].filter(([key]) => !rooms.has(key)));
         actualRooms = new Map([...nonMatches, ...rooms].filter(([key]) => !users.has(key)));
-        console.log("nonMatches")
-        console.log(nonMatches)
         //let actualRooms = getNonMatches(users, rooms)
         //console.log(actualRooms)
 
         socket.on("register_user", (user, cb) =>{
             var userRepository = dataSource.getRepository("user");
             userRepository.save(user);
-
         });
 
+
         socket.on("login_user", (user, cb) => {
-            console.log(user)
             var userRepository = dataSource.getRepository("user");
             userRepository.findOneBy({username: user.username}).then(function(user){
                 if(user != null){
@@ -99,31 +98,48 @@ dataSource.initialize().then(function(){
             })
         });
 
-
-
-
-        socket.on("create_battle", () => {
+        socket.on("create_battle", (user, cb) => {
             let battleId = generateRandomString();
-            socket.emit("battle_created", battleId);
+            let battleRoom = {
+                id: battleId,
+                users: [user]
+            }
+            battleRooms.push(battleRoom);
+            cb(battleId);
 
+            console.log(battleRooms);
         });
 
-        socket.on("get_rooms", () => {
-            console.log("get_rooms")
-            console.log(new Map(io.sockets.adapter.rooms));
+        socket.on("get_rooms", (cb) => {
+            console.log(battleRooms)
+            cb(battleRooms);
         });
 
-        socket.on("join_room", ({ roomId, userId }) => {
-            console.log(`User with ID: ${userId} joined room: ${roomId}`);
-
-            // Emit that the room has been created with the id of the room
-            io.emit("room_created", roomId);
+        socket.on("join_room", (roomId, user, cb) => {
+            // Find the room with the matching id
+            let room = battleRooms.find(room => room.id === roomId);
+            
+            if (room) {
+                // If the room exists, add the user to the room
+                room.users.push(user);
+                console.log("User added to existing room");
+                console.log(battleRooms);
+                    
+                // Add the user to the socket room
+                socket.join(roomId);
+                cb(roomId);
+            } else {
+                console.log("Room not found");
+            }
             // Emit that the user has joined the room with the id of the user
-            io.emit("user_joined", userId);
+            io.emit("user_joined", user);
         });
 
-        socket.on("old_user", (userId) => {
-            io.emit("existing_user", userId);
+        socket.on("get_room_users", (roomId, cb) => {
+            let room = battleRooms.find(room => room.id === roomId);
+            if (room) {
+                cb(room.users);
+            }
         });
 
         socket.on("room_filled", (room) => {
