@@ -6,6 +6,9 @@ const cors = require('cors');
 app.use(cors());
 const mysql = require('mysql');
 const { register } = require('module');
+const { createConnection } = require('net');
+const typeorm = require("typeorm")
+
 
 const server = http.createServer(app);
 
@@ -17,54 +20,18 @@ const io = new Server(server, {
     },
 });
 
-class userdto {
-    constructor(username, password) {
-        this.username = username;
-        this.password = password;
-    }
-}
+var dataSource = new typeorm.DataSource({
+    type: "mysql",
+    host: "localhost",
+    port: 3306,
+    username: "root",
+    password: "",
+    database: "pokebattle",
+    entities: [require("./entities/user.js"), require("./entities/role.js")],
+    synchronize: true,
+    logging: false,
+})
 
-const createUser = (usetDto) => {
-    db.query(`INSERT INTO users username, password 
-    VALUES ('${user.username}', '${user.password}')
-    `, (err, result) => {
-      try { 
-        console.log("RESULT IS FROM DATABASE LONG NAME TO SEE")
-        console.log(result);
-      } catch (err) {
-        console.log(err);
-        // If there was an error, return 0
-        cb('0');
-      }
-    });
-
-}
-
-// Create connection to docker database
-const db = mysql.createConnection({
-    host: 'PokeBattle',
-    user: 'root',
-    password: 'admin',
-    database: 'pokebattle'
-});
-
-
-// // Create connection to database
-// const db = mysql.createConnection({
-//     host: 'localhost',
-//     user: 'root',
-//     password: '',
-//     database: 'PokeBattle',
-// });
-
-// Connect to database
-db.connect((err) => {
-    if (err) {
-        console.log("NO DATABASE ")
-        throw err;
-    }
-    console.log('Connected to database');
-});
 
 // Generate a random string of length 16
 function generateRandomString() {
@@ -98,20 +65,15 @@ io.on('connection', (socket) => {
     //console.log(actualRooms)
 
     socket.on("register_user", (user, cb) =>{
-        db.query(`INSERT INTO users (username, password, email) VALUES ('${user.username}', '${user.password}', '${user.email}')`, (err, result) => {
-            try {
-                if(result != null){
-                    cb('1');
-                }
-                else{
-                    cb('0');
-                }
-            } catch (err) {
-                console.log(err);
-                // If there was an error, return 0
-                cb('0');
-            }
-        });
+        dataSource.initialize().then(function(){
+            var userRepository = dataSource.getRepository("user");
+
+
+            userRepository.save(user);
+            console.log("user saved")
+            console.log(user)
+        })
+
     });
 
     socket.on("login_user", (user, cb) => {
