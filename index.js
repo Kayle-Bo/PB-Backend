@@ -104,6 +104,7 @@ dataSource.initialize().then(function(){
         });
 
         socket.on("get_rooms", (cb) => {
+            console.log("Getting rooms")
             console.log(battleRooms)
             cb(battleRooms);
         });
@@ -137,16 +138,42 @@ dataSource.initialize().then(function(){
             }
         });
 
-        socket.on("room_filled", (room) => {
-            io.emit("room_remove", room);
+
+
+        // To handle the "close_room" event
+        socket.on("close_room", (roomId) => {
+
+            // Find the room with the matching id
+            let roomIndex = battleRooms.findIndex(room => room.id === roomId);
+            
+            if (roomIndex !== -1) {
+                // If the room exists, remove it from the rooms array
+                battleRooms.splice(roomIndex, 1);
+                console.log(`Room ${roomId} closed`);
+                console.log(battleRooms);
+
+                // Emit 'redirect' event to all clients in this room
+                io.emit("redirect", "/dashboard");
+
+                // Disconnect all clients in this room
+                io.in(roomId).fetchSockets().then((sockets) => {
+                    console.log(`Backend socket ids in room ${roomId}: ${sockets.map(socket => socket.id)}`);
+                    sockets.forEach((socket) => {
+                        // Emit an event to the client to redirect them
+                        socket.disconnect(true);
+                    });
+                });
+
+
+                // Emit an event to all connected clients to update their rooms data
+                io.emit("rooms_updated", battleRooms);
+            } else {
+                console.log("Room not found");
+            }
         });
 
-        socket.on("disconenct", () => {
-            console.log(`User disconnected: ${socket.id}`);
 
-            let message = `User: ${socket.id} left`;
-            socket.to(data).emit("receive_message", message);
-        });
+
 
         socket.on('send_message', (data) => {
             let message = `${data.userId}: ${data.message}`;
