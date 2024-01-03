@@ -60,8 +60,15 @@ dataSource.initialize().then(function(){
         console.log(`User connected: ${socket.id}`);
 
         socket.on("register_user", (user, cb) =>{
-            var userRepository = dataSource.getRepository("user");
-            userRepository.save(user);
+            try{
+                var userRepository = dataSource.getRepository("user");
+                userRepository.save(user);
+                cb(1)
+            }
+            catch{
+                cb(0)
+            }
+
         });
 
 
