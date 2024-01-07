@@ -6,7 +6,8 @@ const cors = require('cors');
 app.use(cors());
 const mysql = require('mysql');
 const { register } = require('module');
-const typeorm = require("typeorm")
+const typeorm = require("typeorm");
+const { connect } = require('http2');
 
 
 const server = http.createServer(app);
@@ -28,7 +29,7 @@ var dataSource = new typeorm.DataSource({
     username: "root",
     password: "",
     database: "pokebattle",
-    entities: [require("./entities/user.js"), require("./entities/role.js")],
+    entities: [require("./entities/user.js"), require("./entities/role.js"), require("./entities/battle.js"), require("./entities/monster.js")],
     synchronize: true,
     logging: false,
 })
@@ -54,6 +55,9 @@ server.listen(3001, () => {
 
 dataSource.initialize().then(function(){
 
+    var userRepository = dataSource.getRepository("user");
+    var monsterRepository = dataSource.getRepository("monster");
+
     // On connection
     io.on('connection', (socket) => {
 
@@ -61,7 +65,6 @@ dataSource.initialize().then(function(){
 
         socket.on("register_user", (user, cb) =>{
             try{
-                var userRepository = dataSource.getRepository("user");
                 userRepository.save(user);
                 cb(1)
             }
@@ -111,8 +114,6 @@ dataSource.initialize().then(function(){
         });
 
         socket.on("get_rooms", (cb) => {
-            console.log("Getting rooms")
-            console.log(battleRooms)
             cb(battleRooms);
         });
 
@@ -129,6 +130,34 @@ dataSource.initialize().then(function(){
                 // Add the user to the socket room
                 socket.join(roomId);
                 cb(roomId);
+                console.log("all monsters")
+
+                // If this is the last player to join the room, start the game
+                if (room.users.length === 2) {
+                    // Retrieve a random monster from the database
+
+                    monsterRepository.find().then(function(monster){
+                        // Assign the monster to each user
+                        room.users.forEach(user => {
+                            user.monster = monster;
+                    });
+
+                    // Initialize the match object
+                    room.match = {
+                        turn: 0,
+                        actions: [],
+                        monsters: room.users.map(user => user.monster)
+                    };
+                    
+
+                    //Notify the players that the game has started and send the monster data
+                    room.users.forEach(user => {
+                        console.log(room)
+                        console.log("emited monster")
+                        io.emit("game_started", room.users);
+                    });
+                })
+                }               
             } else {
                 console.log("Room not found");
             }
@@ -144,7 +173,6 @@ dataSource.initialize().then(function(){
                 cb(room.users);
             }
         });
-
 
 
         // To handle the "close_room" event
@@ -171,7 +199,6 @@ dataSource.initialize().then(function(){
                     });
                 });
 
-
                 // Emit an event to all connected clients to update their rooms data
                 io.emit("rooms_updated", battleRooms);
             } else {
@@ -179,14 +206,36 @@ dataSource.initialize().then(function(){
             }
         });
 
+        // socket.on('send_message', (data) => {
+        //     let message = `${data.userId}: ${data.message}`;
+        //     socket.to(data.room).emit('receive_message', message);
+        // });
 
 
-
-        socket.on('send_message', (data) => {
-            let message = `${data.userId}: ${data.message}`;
-            socket.to(data.room).emit('receive_message', message);
+        // Handle player moves
+        socket.on("player_move", (roomId, moveData) => {
+            // Find the room with the matching id
+            let room = battleRooms.find(room => room.id === roomId);
+        
+            if (room) {
+                // Process the move and update the game data
+                let gameData = processMove(roomId, moveData);
+        
+                // Update the match object with the result of the move
+                room.match.actions.push(moveData);
+                room.match.monsters = gameData.monsters;
+                room.match.turn = (room.match.turn + 1) % room.users.length;
+        
+                // Notify the players of the updated game data
+                io.to(roomId).emit("game_data_updated", gameData);
+        
+                // Notify the next player that it's their turn
+                let nextPlayer = room.users[room.match.turn];
+                io.to(nextPlayer.socketId).emit("your_turn");
+            } else {
+                console.log("Room not found");
+            }
         });
-
     })
 })
 
