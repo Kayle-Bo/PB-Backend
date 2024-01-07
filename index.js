@@ -8,6 +8,8 @@ const mysql = require('mysql');
 const { register } = require('module');
 const typeorm = require("typeorm");
 const { connect } = require('http2');
+const battle = require('./entities/battle.js');
+const user = require('./entities/user.js');
 
 
 const server = http.createServer(app);
@@ -47,6 +49,18 @@ function generateRandomString() {
         counter += 1;
     }
     return result;
+}
+
+function processMove(moveData, monster) {
+    //create matchcase for moveData
+    switch (moveData.move) {
+        case "attack":
+            // Calculate the damage
+            let damage = moveData.value;
+            monster.health -= damage;
+            return monster;
+    }
+
 }
 
 server.listen(3001, () => {
@@ -105,7 +119,8 @@ dataSource.initialize().then(function(){
             let battleId = generateRandomString();
             let battleRoom = {
                 id: battleId,
-                users: [user]
+                users: [user],
+                userTurn: 0,
             }
             battleRooms.push(battleRoom);
             cb(battleId);
@@ -125,41 +140,40 @@ dataSource.initialize().then(function(){
                 // If the room exists, add the user to the room
                 room.users.push(user);
                     
-                // Add the user to the socket room
                 socket.join(roomId);
                 cb(roomId);
 
                 // If this is the last player to join the room, start the game
                 if (room.users.length === 2) {
-                    // Retrieve a random monster from the database
 
                     monsterRepository.find().then(function(monster){
                         // Assign the monster to each user
                         room.users.forEach(user => {
-                            monster[0].health = monster[0].maxHealth;
-                            user.monster = monster;
-                    });
+                            let userMonster = {...monster[0]};
+                            userMonster.health = userMonster.maxHealth;
+                            user.monster = [userMonster];
+                        });
+                        
+                        // Initialize the match object
+                        room.match = {
+                            turn: 0,
+                            actions: [],
+                            monsters: room.users.map(user => user.monster)
+                        };
+                        
+                        // Flip a coin to determine who goes first between the two players
+                        let turn = Math.floor(Math.random() * 2);
+                        room.userTurn = room.users[turn].id;
+                        console.log("setting turn to " + room.userTurn)
 
-                    // Initialize the match object
-                    room.match = {
-                        turn: 0,
-                        actions: [],
-                        monsters: room.users.map(user => user.monster)
-                    };
-                    
-                    // Flip a coin to determine who goes first between the two players
-                    let turn = Math.floor(Math.random() * 2);
-                    room.match.turn = room.users[turn].id;
-
-                    console.log(room.match.turn);
-                    //Notify the players that the game has started and send the monster data
-                    room.users.forEach(user => {
-                        io.emit("game_started", room);
-                    });
-                })
-                }               
+                        //Notify the players that the game has started and send the monster data
+                        room.users.forEach(user => {
+                            io.emit("game_started", room);
+                        });
+                    })
+                }
             } else {
-                //console.log("Room not found");
+                console.log("Room not found");
             }
             // Emit that the user has joined the room with the id of the user
             io.emit("user_joined", user);
@@ -175,7 +189,6 @@ dataSource.initialize().then(function(){
         });
 
 
-        // To handle the "close_room" event
         socket.on("close_room", (roomId) => {
 
             // Find the room with the matching id
@@ -210,29 +223,42 @@ dataSource.initialize().then(function(){
 
 
         // Handle player moves
-        socket.on("player_move", (roomId, moveData) => {
+        socket.on("player_move", (userId, roomId, moveData) => {
             // Find the room with the matching id
             let room = battleRooms.find(room => room.id === roomId);
-            
-            console.log(room)
-            // if (room) {
-            //     // Process the move and update the game data
-            //     let gameData = processMove(roomId, moveData);
-        
-            //     // Update the match object with the result of the move
-            //     room.match.actions.push(moveData);
-            //     room.match.monsters = gameData.monsters;
-            //     room.match.turn = (room.match.turn + 1) % room.users.length;
-        
-            //     // Notify the players of the updated game data
-            //     io.to(roomId).emit("game_data_updated", gameData);
-        
-            //     // Notify the next player that it's their turn
-            //     let nextPlayer = room.users[room.match.turn];
-            //     io.to(nextPlayer.socketId).emit("your_turn");
-            // } else {
-            //     console.log("Room not found");
-            // }
+            if (room) {
+                // Check if it's the player's turn
+                if(userId == room.userTurn){
+                    console.log("before move")
+                    console.log(room.users[0].monster[0])
+                    console.log(room.users[1].monster[0])
+
+                    let otherUser = room.users.find(user => user.id !== userId);
+                    let otherMonster = otherUser.monster[0];
+
+                    // Process the move and update the game data
+                    let updatedMonsterData = processMove(moveData, otherMonster);
+
+                    // Check if the monster's health is 0 or less
+                    if (updatedMonsterData.health <= 0) {
+                        room.userTurn = -1;
+                    } else {
+                        // Update the match object with the result of the move
+                        moveData.user = userId;
+                        room.match.actions.push(moveData);
+
+                        otherUser.monster[0] = updatedMonsterData;
+                        room.userTurn = otherUser.id;
+                        room.match.turn += 1;
+                    }
+                    
+                    // emit to the room that the game has been updated
+                    io.emit("game_updated", room);
+                }
+
+            } else {
+                console.log("Room not found");
+            }
         });
     })
 })
