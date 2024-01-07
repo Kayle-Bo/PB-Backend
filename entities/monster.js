@@ -1,35 +1,30 @@
 var EntitySchema = require("typeorm").EntitySchema
 
 module.exports = new EntitySchema({
-    name: "user",
+    name: "monster",
     columns: {
         id: {
             primary: true,
             type: "int",
             generated: true,
         },
-        username: {
+        name: {
             type: "varchar",
         },
-        password: {
+        type: {
             type: "varchar",
         },
-        email: {
-            type: "varchar",
-        },
-        wins: {
+        maxHealth: {
             type: "int",
         },
-        losses: {
+        attack: {
             type: "int",
         },
-    },
-    relations: {
-        role: {
-            target: "role",
-            type: "many-to-one", // many users can have one role while a user has one role
-            joinColumn: true,
-            cascade: true,
+        defense: {
+            type: "int",
+        },
+        speed: {
+            type: "int",
         },
     },
 })
