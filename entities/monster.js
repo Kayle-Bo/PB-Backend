@@ -14,7 +14,7 @@ module.exports = new EntitySchema({
         type: {
             type: "varchar",
         },
-        health: {
+        maxHealth: {
             type: "int",
         },
         attack: {

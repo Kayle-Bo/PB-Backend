@@ -124,13 +124,10 @@ dataSource.initialize().then(function(){
             if (room) {
                 // If the room exists, add the user to the room
                 room.users.push(user);
-                console.log("User added to existing room");
-                console.log(battleRooms);
                     
                 // Add the user to the socket room
                 socket.join(roomId);
                 cb(roomId);
-                console.log("all monsters")
 
                 // If this is the last player to join the room, start the game
                 if (room.users.length === 2) {
@@ -139,6 +136,7 @@ dataSource.initialize().then(function(){
                     monsterRepository.find().then(function(monster){
                         // Assign the monster to each user
                         room.users.forEach(user => {
+                            monster[0].health = monster[0].maxHealth;
                             user.monster = monster;
                     });
 
@@ -149,17 +147,19 @@ dataSource.initialize().then(function(){
                         monsters: room.users.map(user => user.monster)
                     };
                     
+                    // Flip a coin to determine who goes first between the two players
+                    let turn = Math.floor(Math.random() * 2);
+                    room.match.turn = room.users[turn].id;
 
+                    console.log(room.match.turn);
                     //Notify the players that the game has started and send the monster data
                     room.users.forEach(user => {
-                        console.log(room)
-                        console.log("emited monster")
-                        io.emit("game_started", room.users);
+                        io.emit("game_started", room);
                     });
                 })
                 }               
             } else {
-                console.log("Room not found");
+                //console.log("Room not found");
             }
             // Emit that the user has joined the room with the id of the user
             io.emit("user_joined", user);
@@ -184,15 +184,12 @@ dataSource.initialize().then(function(){
             if (roomIndex !== -1) {
                 // If the room exists, remove it from the rooms array
                 battleRooms.splice(roomIndex, 1);
-                console.log(`Room ${roomId} closed`);
-                console.log(battleRooms);
 
                 // Emit 'redirect' event to all clients in this room
                 io.emit("redirect", "/dashboard");
 
                 // Disconnect all clients in this room
                 io.in(roomId).fetchSockets().then((sockets) => {
-                    console.log(`Backend socket ids in room ${roomId}: ${sockets.map(socket => socket.id)}`);
                     sockets.forEach((socket) => {
                         // Emit an event to the client to redirect them
                         socket.disconnect(true);
@@ -202,7 +199,7 @@ dataSource.initialize().then(function(){
                 // Emit an event to all connected clients to update their rooms data
                 io.emit("rooms_updated", battleRooms);
             } else {
-                console.log("Room not found");
+                //console.log("Room not found");
             }
         });
 
@@ -216,25 +213,26 @@ dataSource.initialize().then(function(){
         socket.on("player_move", (roomId, moveData) => {
             // Find the room with the matching id
             let room = battleRooms.find(room => room.id === roomId);
+            
+            console.log(room)
+            // if (room) {
+            //     // Process the move and update the game data
+            //     let gameData = processMove(roomId, moveData);
         
-            if (room) {
-                // Process the move and update the game data
-                let gameData = processMove(roomId, moveData);
+            //     // Update the match object with the result of the move
+            //     room.match.actions.push(moveData);
+            //     room.match.monsters = gameData.monsters;
+            //     room.match.turn = (room.match.turn + 1) % room.users.length;
         
-                // Update the match object with the result of the move
-                room.match.actions.push(moveData);
-                room.match.monsters = gameData.monsters;
-                room.match.turn = (room.match.turn + 1) % room.users.length;
+            //     // Notify the players of the updated game data
+            //     io.to(roomId).emit("game_data_updated", gameData);
         
-                // Notify the players of the updated game data
-                io.to(roomId).emit("game_data_updated", gameData);
-        
-                // Notify the next player that it's their turn
-                let nextPlayer = room.users[room.match.turn];
-                io.to(nextPlayer.socketId).emit("your_turn");
-            } else {
-                console.log("Room not found");
-            }
+            //     // Notify the next player that it's their turn
+            //     let nextPlayer = room.users[room.match.turn];
+            //     io.to(nextPlayer.socketId).emit("your_turn");
+            // } else {
+            //     console.log("Room not found");
+            // }
         });
     })
 })
