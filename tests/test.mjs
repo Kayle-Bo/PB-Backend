@@ -5,43 +5,45 @@ import http from 'http';
 import { processMove, generateRandomString } from '../index.js';
 import socketIOClient from 'socket.io-client';
 
-// Setup: Create an HTTP server and Socket.IO server
+// Setup and teardown code
+let server;
+let io;
+let socket;
+
+function setup() {
+  const httpServer = http.createServer();
+  io = new Server(httpServer);
+  server = httpServer.listen(3002);
+
+  socket = socketIOClient('http://localhost:3002');
+}
+
+function teardown() {
+  socket.disconnect();
+  socket = null;
+
+  io.close();
+  io = null;
+
+  server.close();
+  server = null;
+}
+
+// Test cases
 describe('Socket Server Tests', () => {
-  let server;
-  let io;
-  let socket;
-
-  // Before all tests, start the server
-  before((done) => {
-    const httpServer = http.createServer();
-    io = new Server(httpServer);
-    server = httpServer.listen(3002, done);
+  before(() => {
+    setup();
   });
 
-  // Before each test, connect a new Socket.IO client
-  beforeEach(() => {
-    socket = socketIOClient('http://localhost:3002');
+  after(() => {
+    teardown();
   });
 
-  // After each test, disconnect the Socket.IO client
-  afterEach(() => {
-    socket.disconnect();
-  });
-
-  // After all tests, close the server
-  after((done) => {
-    server.close(done);
-  });
-
-  // Test cases
-
-  // Test Case: Check if generateRandomString produces a string of the expected length
   it('should generate a random string', () => {
     const randomString = generateRandomString();
     expect(randomString).to.have.lengthOf(16);
   });
 
-  // Test Case: Check if processMove updates the monster's health correctly
   it('should process player move and update monster health', () => {
     const moveData = { move: 'attack', value: 10 };
     const initialMonster = { health: 50 };
@@ -49,5 +51,4 @@ describe('Socket Server Tests', () => {
     const updatedMonster = processMove(moveData, initialMonster);
     expect(updatedMonster.health).to.equal(40);
   });
-
 });
