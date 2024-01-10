@@ -3,13 +3,14 @@ const app = express();
 
 import http from 'http';
 import { Server } from 'socket.io';
-import cors from
- 
-'cors';
+import bcrypt from 'bcrypt';
+import cors from 'cors';
 app.use(cors());
+
+
 import typeorm from 'typeorm';
-import  battle  from './entities/battle.js';
-import  user  from './entities/user.js';
+import battle  from './entities/battle.js';
+import user  from './entities/user.js';
 import role from './entities/role.js';
 import monster from './entities/monster.js';
 
@@ -80,35 +81,35 @@ dataSource.initialize().then(function(){
 
         socket.on("register_user", (user, cb) =>{
             try{
+                const hashedPassword = bcrypt.hashSync(user.password, 10);
+                user.password = hashedPassword;
                 userRepository.save(user);
                 cb(1)
             }
             catch{
                 cb(0)
             }
-
         });
-
 
         socket.on("login_user", (user, cb) => {
             var userRepository = dataSource.getRepository("user");
-            userRepository.findOneBy({username: user.username}).then(function(user){
-                if(user != null){
-                    userRepository.findOneBy({username: user.username, password: user.password}).then(function(user){
-                        if(user != null){
-                            let userDTO = {
-                                id: user.id,
-                                username: user.username,
-                                email: user.email,
-                                wins: user.wins,
-                                losses: user.losses
-                            }
-                            cb(userDTO);
+            userRepository.findOneBy({username: user.username}).then(async function(dbUser){
+                if(dbUser != null){
+                     // Compare the entered password with the hashed password in the database
+                    const passwordMatch = await bcrypt.compare(user.password, dbUser.password);
+                    if(passwordMatch){
+                        let userDTO = {
+                            id: user.id,
+                            username: user.username,
+                            email: user.email,
+                            wins: user.wins,
+                            losses: user.losses
                         }
-                        else{
-                            cb('0');
-                        }
-                    })
+                        cb(userDTO);
+                    }
+                    else{
+                        cb('0');
+                    }
                 }
                 else{
                     cb('0');
@@ -217,6 +218,7 @@ dataSource.initialize().then(function(){
             }
         });
 
+        // Use later for back and for chatting in rooms
         // socket.on('send_message', (data) => {
         //     let message = `${data.userId}: ${data.message}`;
         //     socket.to(data.room).emit('receive_message', message);
