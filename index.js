@@ -7,10 +7,7 @@ import cors from
  
 'cors';
 app.use(cors());
-import mysql from 'mysql';
-import { register } from 'module';
 import typeorm from 'typeorm';
-import { connect } from 'http2';
 import  battle  from './entities/battle.js';
 import  user  from './entities/user.js';
 import role from './entities/role.js';
