@@ -1,6 +1,6 @@
-var EntitySchema = require("typeorm").EntitySchema
+import { EntitySchema } from "typeorm";
 
-module.exports = new EntitySchema({
+const Battle = new EntitySchema({
     name: "battle",
     columns: {
         id: {
@@ -50,4 +50,6 @@ module.exports = new EntitySchema({
             cascade: true,
         },
     },
-})
+});
+
+export default Battle;

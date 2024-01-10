@@ -1,6 +1,6 @@
-var EntitySchema = require("typeorm").EntitySchema
+import { EntitySchema } from "typeorm";
 
-module.exports = new EntitySchema({
+const Role = new EntitySchema({
     name: "role",
     columns: {
         id: {
@@ -16,3 +16,5 @@ module.exports = new EntitySchema({
         },
     },
 })
+
+export default Role;
