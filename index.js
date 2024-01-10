@@ -1,16 +1,20 @@
-const express = require('express');
+import express from 'express';
 const app = express();
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-app.use(cors());
-const mysql = require('mysql');
-const { register } = require('module');
-const typeorm = require("typeorm");
-const { connect } = require('http2');
-const battle = require('./entities/battle.js');
-const user = require('./entities/user.js');
 
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from
+ 
+'cors';
+app.use(cors());
+import mysql from 'mysql';
+import { register } from 'module';
+import typeorm from 'typeorm';
+import { connect } from 'http2';
+import  battle  from './entities/battle.js';
+import  user  from './entities/user.js';
+import role from './entities/role.js';
+import monster from './entities/monster.js';
 
 const server = http.createServer(app);
 
@@ -31,14 +35,14 @@ var dataSource = new typeorm.DataSource({
     username: "root",
     password: "",
     database: "pokebattle",
-    entities: [require("./entities/user.js"), require("./entities/role.js"), require("./entities/battle.js"), require("./entities/monster.js")],
+    entities: [user, role, battle, monster],
     synchronize: true,
     logging: false,
 })
 
 
 // Generate a random string of length 16
-function generateRandomString() {
+export function generateRandomString() {
     let result = '';
     const length = 16;
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -51,7 +55,7 @@ function generateRandomString() {
     return result;
 }
 
-function processMove(moveData, monster) {
+export function processMove(moveData, monster) {
     //create matchcase for moveData
     switch (moveData.move) {
         case "attack":
@@ -95,7 +99,7 @@ dataSource.initialize().then(function(){
                 if(user != null){
                     userRepository.findOneBy({username: user.username, password: user.password}).then(function(user){
                         if(user != null){
-                            userDTO = {
+                            let userDTO = {
                                 id: user.id,
                                 username: user.username,
                                 email: user.email,

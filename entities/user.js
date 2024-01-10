@@ -1,6 +1,6 @@
-var EntitySchema = require("typeorm").EntitySchema
+import { EntitySchema } from "typeorm";
 
-module.exports = new EntitySchema({
+const User = new EntitySchema({
     name: "user",
     columns: {
         id: {
@@ -32,4 +32,6 @@ module.exports = new EntitySchema({
             cascade: true,
         },
     },
-})
+});
+
+export default User;
