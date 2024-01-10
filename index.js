@@ -79,43 +79,68 @@ dataSource.initialize().then(function(){
 
         console.log(`User connected: ${socket.id}`);
 
-        socket.on("register_user", (user, cb) =>{
-            try{
-                const hashedPassword = bcrypt.hashSync(user.password, 10);
-                user.password = hashedPassword;
-                userRepository.save(user);
-                cb(1)
-            }
-            catch{
-                cb(0)
-            }
+        socket.on("register_user", (user, cb) => {
+            const hashedPassword = bcrypt.hashSync(user.password, 10);
+            user.password = hashedPassword;
+        
+            userRepository.findOne({
+                    where: [{ username: user.username }, { email: user.email }],
+                })
+                .then(existingUser => {
+                    if (existingUser) {
+                        // User with the same username or email already exists
+                        cb(2);
+                    } else {
+                        // User doesn't exist, save the new user
+                        userRepository
+                            .save(user)
+                            .then(() => {
+                                cb(1);
+                            })
+                            .catch(error => {
+                                console.error("Error saving user:", error);
+                                cb(0);
+                            });
+                    }
+                })
+                .catch(error => {
+                    console.error("Error checking existing user:", error);
+                    cb(0);
+                });
         });
-
+        
+        
         socket.on("login_user", (user, cb) => {
             var userRepository = dataSource.getRepository("user");
-            userRepository.findOneBy({username: user.username}).then(async function(dbUser){
-                if(dbUser != null){
-                     // Compare the entered password with the hashed password in the database
-                    const passwordMatch = await bcrypt.compare(user.password, dbUser.password);
-                    if(passwordMatch){
-                        let userDTO = {
-                            id: user.id,
-                            username: user.username,
-                            email: user.email,
-                            wins: user.wins,
-                            losses: user.losses
+            userRepository.findOneBy({ username: user.username }).then(function (dbUser) {
+                if (dbUser != null) {
+                    // Compare the entered password with the hashed password in the database
+                    bcrypt.compare(user.password, dbUser.password).then(function (passwordMatch) {
+                        if (passwordMatch) {
+                            let userDTO = {
+                                id: user.id,
+                                username: user.username,
+                                email: user.email,
+                                wins: user.wins,
+                                losses: user.losses
+                            };
+                            cb(userDTO);
+                        } else {
+                            cb('0');
                         }
-                        cb(userDTO);
-                    }
-                    else{
+                    }).catch(function (error) {
+                        console.error("Error comparing passwords:", error);
                         cb('0');
-                    }
-                }
-                else{
+                    });
+                } else {
                     cb('0');
                 }
-            })
+            }).catch(function (error) {
+                console.error("Error finding user:", error);
+                cb('0');
+            });
         });
+        
 
         socket.on("create_battle", (user, cb) => {
             let battleId = generateRandomString();
