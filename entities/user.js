@@ -23,13 +23,17 @@ const User = new EntitySchema({
         losses: {
             type: "int",
         },
+        roleId: { // Foreign key column
+            type: "int",
+            nullable: true,
+          },
     },
     relations: {
         role: {
-            target: "role",
-            type: "many-to-one", // many users can have one role while a user has one role
-            joinColumn: true,
-            cascade: true,
+          target: "role", 
+          type: "many-to-one",
+          joinColumn: { name: "roleId" }, 
+          cascade: true,
         },
     },
 });

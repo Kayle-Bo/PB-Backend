@@ -73,86 +73,102 @@ dataSource.initialize().then(function(){
 
     var userRepository = dataSource.getRepository("user");
     var monsterRepository = dataSource.getRepository("monster");
+    var roleRepository = dataSource.getRepository("role");
 
     // On connection
     io.on('connection', (socket) => {
 
         console.log(`User connected: ${socket.id}`);
 
-        socket.on("register_user", (user, cb) => {
-            const hashedPassword = bcrypt.hashSync(user.password, 10);
-            user.password = hashedPassword;
+        socket.on("register_user", async (user, cb) => {
+            try {
+                const hashedPassword = bcrypt.hashSync(user.password, 10);
+                user.password = hashedPassword;
         
-            userRepository.findOne({
-                    where: [{ username: user.username }, { email: user.email }],
-                })
-                .then(existingUser => {
-                    if (existingUser) {
-                        // User with the same username or email already exists
-                        cb(2);
-                    } else {
-                        // User doesn't exist, save the new user
-                        userRepository
-                            .save(user)
-                            .then(() => {
-                                cb(1);
-                            })
-                            .catch(error => {
-                                console.error("Error saving user:", error);
-                                cb(0);
-                            });
-                    }
-                })
-                .catch(error => {
-                    console.error("Error checking existing user:", error);
-                    cb(0);
+                // Check if the user already exists
+                const existingUser = await userRepository.findOne({
+                    where: [{ username: user.username }, { email: user.email }]
                 });
+        
+                if (existingUser) {
+                    // User with the same username or email already exists
+                    cb(2);
+                    return;
+                }
+        
+                // Find the user role
+                const userRole = await roleRepository.findOne({ where: [{name: "user" }]});
+        
+                // Assign the role to the user
+                user.role = userRole;
+        
+                // Save the new user
+                await userRepository.save(user);
+        
+                // Callback with success status
+                cb(1);
+            } catch (error) {
+                console.error("Error during user registration:", error);
+                // Callback with failure status
+                cb(0);
+            }
         });
         
         
-socket.on("login_user", (user, cb) => {
-    // Get the user repository from the data source
-    var userRepository = dataSource.getRepository("user");
+        
+        socket.on("login_user", (user, cb) => {
+            // Get the user repository from the data source
+            var userRepository = dataSource.getRepository("user");
+        
+            // Find a user by username in the database
+            userRepository
+                .createQueryBuilder("user")
+                .leftJoinAndSelect("user.role", "role") // Perform a left join on the 'role' relation
+                .where("user.username = :username", { username: user.username })
+                .getOne()
+                .then(function (dbUser) {
+                    // Check if a user with the provided username exists
+                    if (dbUser) {
+                        // Compare the entered password with the hashed password in the database
+                        bcrypt.compare(user.password, dbUser.password).then(function (passwordMatch) {
+                            // Check if the passwords match
+                            if (passwordMatch) {
+                                // Create a userDTO object with selected user information
+                                let userDTO = {
+                                    id: dbUser.id,
+                                    username: dbUser.username,
+                                    email: dbUser.email,
+                                    wins: dbUser.wins,
+                                    losses: dbUser.losses,
+                                    role: dbUser.role,
+                                };
+                                console.log(userDTO);
 
-    // Find a user by username in the database
-    userRepository.findOneBy({ username: user.username }).then(function (dbUser) {
-        // Check if a user with the provided username exists
-        if (dbUser != null) {
-            // Compare the entered password with the hashed password in the database
-            bcrypt.compare(user.password, dbUser.password).then(function (passwordMatch) {
-                // Check if the passwords match
-                if (passwordMatch) {
-                    // Create a userDTO object with selected user information
-                    let userDTO = {
-                        id: user.id,
-                        username: user.username,
-                        email: user.email,
-                        wins: user.wins,
-                        losses: user.losses
-                    };
-                    // Call the callback with the userDTO
-                    cb(userDTO);
-                } else {
-                    // Call back '0' the username and password do not match
-                    cb(0);
-                }
-            }).catch(function (error) {
-                // Handle errors during password comparison
-                console.error("Error comparing passwords:", error);
-                // Call the callback with '0' to indicate a failed login attempt
-                cb(9);
-            });
-        } else {
-            // Call back '0' the username was not found
-            cb(0);
-        }
-    }).catch(function (error) {
-        // Handle errors during user lookup
-        console.error("Error finding user:", error);
-        // Call the callback with '0' to indicate a failed login attempt
-        cb('0');
-    });
-});
+                                // Call the callback with the userDTO
+                                cb(userDTO);
+                            } else {
+                                // Call back '0' the username and password do not match
+                                cb(0);
+                            }
+                        }).catch(function (error) {
+                            // Handle errors during password comparison
+                            console.error("Error comparing passwords:", error);
+                            // Call the callback with '0' to indicate a failed login attempt
+                            cb(9);
+                        });
+                    } else {
+                        // Call back '0' the username was not found
+                        cb(0);
+                    }
+                })
+                .catch(function (error) {
+                    // Handle errors during user lookup
+                    console.error("Error finding user:", error);
+                    // Call the callback with '0' to indicate a failed login attempt
+                    cb('0');
+                });
+        });
+        
 
         
 
