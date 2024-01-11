@@ -110,36 +110,50 @@ dataSource.initialize().then(function(){
         });
         
         
-        socket.on("login_user", (user, cb) => {
-            var userRepository = dataSource.getRepository("user");
-            userRepository.findOneBy({ username: user.username }).then(function (dbUser) {
-                if (dbUser != null) {
-                    // Compare the entered password with the hashed password in the database
-                    bcrypt.compare(user.password, dbUser.password).then(function (passwordMatch) {
-                        if (passwordMatch) {
-                            let userDTO = {
-                                id: user.id,
-                                username: user.username,
-                                email: user.email,
-                                wins: user.wins,
-                                losses: user.losses
-                            };
-                            cb(userDTO);
-                        } else {
-                            cb('0');
-                        }
-                    }).catch(function (error) {
-                        console.error("Error comparing passwords:", error);
-                        cb('0');
-                    });
+socket.on("login_user", (user, cb) => {
+    // Get the user repository from the data source
+    var userRepository = dataSource.getRepository("user");
+
+    // Find a user by username in the database
+    userRepository.findOneBy({ username: user.username }).then(function (dbUser) {
+        // Check if a user with the provided username exists
+        if (dbUser != null) {
+            // Compare the entered password with the hashed password in the database
+            bcrypt.compare(user.password, dbUser.password).then(function (passwordMatch) {
+                // Check if the passwords match
+                if (passwordMatch) {
+                    // Create a userDTO object with selected user information
+                    let userDTO = {
+                        id: user.id,
+                        username: user.username,
+                        email: user.email,
+                        wins: user.wins,
+                        losses: user.losses
+                    };
+                    // Call the callback with the userDTO
+                    cb(userDTO);
                 } else {
-                    cb('0');
+                    // Call back '0' the username and password do not match
+                    cb(0);
                 }
             }).catch(function (error) {
-                console.error("Error finding user:", error);
-                cb('0');
+                // Handle errors during password comparison
+                console.error("Error comparing passwords:", error);
+                // Call the callback with '0' to indicate a failed login attempt
+                cb(9);
             });
-        });
+        } else {
+            // Call back '0' the username was not found
+            cb(0);
+        }
+    }).catch(function (error) {
+        // Handle errors during user lookup
+        console.error("Error finding user:", error);
+        // Call the callback with '0' to indicate a failed login attempt
+        cb('0');
+    });
+});
+
         
 
         socket.on("create_battle", (user, cb) => {
