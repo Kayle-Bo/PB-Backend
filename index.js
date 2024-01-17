@@ -71,9 +71,9 @@ server.listen(3001, () => {
 
 dataSource.initialize().then(function(){
 
-    var userRepository = dataSource.getRepository("user");
-    var monsterRepository = dataSource.getRepository("monster");
-    var roleRepository = dataSource.getRepository("role");
+    let userRepository = dataSource.getRepository("user");
+    let monsterRepository = dataSource.getRepository("monster");
+    let roleRepository = dataSource.getRepository("role");
 
     // On connection
     io.on('connection', (socket) => {
@@ -118,7 +118,7 @@ dataSource.initialize().then(function(){
         
         socket.on("login_user", (user, cb) => {
             // Get the user repository from the data source
-            var userRepository = dataSource.getRepository("user");
+            let userRepository = dataSource.getRepository("user");
         
             // Find a user by username in the database
             userRepository
