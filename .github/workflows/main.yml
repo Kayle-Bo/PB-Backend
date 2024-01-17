@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Cache SonarCloud packages
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         with:
           path: ~\sonar\cache
           key: ${{ runner.os }}-sonar
@@ -32,7 +32,7 @@ jobs:
 
       - name: Cache SonarCloud scanner
         id: cache-sonar-scanner
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         with:
           path: .\.sonar\scanner
           key: ${{ runner.os }}-sonar-scanner
@@ -53,7 +53,5 @@ jobs:
         run: |
           npm install
           .\.sonar\scanner\dotnet-sonarscanner begin /k:"PokeBattle-S3_PB-Backend" /o:"pokebattle-s3" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
-          
-          
-
+          # Ensure the project is built here if needed
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
