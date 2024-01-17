@@ -56,11 +56,13 @@ export function generateRandomString() {
 export function processMove(moveData, monster) {
     //create matchcase for moveData
     switch (moveData.move) {
-        case "attack":
+        case "attack":{
             // Calculate the damage
             let damage = moveData.value;
             monster.health -= damage;
             return monster;
+        }
+
     }
 
 }
