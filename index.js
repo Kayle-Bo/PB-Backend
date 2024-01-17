@@ -3,13 +3,14 @@ const app = express();
 
 import http from 'http';
 import { Server } from 'socket.io';
-import cors from
- 
-'cors';
+import bcrypt from 'bcrypt';
+import cors from 'cors';
 app.use(cors());
+
+
 import typeorm from 'typeorm';
-import  battle  from './entities/battle.js';
-import  user  from './entities/user.js';
+import battle  from './entities/battle.js';
+import user  from './entities/user.js';
 import role from './entities/role.js';
 import monster from './entities/monster.js';
 
@@ -25,7 +26,7 @@ const io = new Server(server, {
 
 let battleRooms = [];
 
-var dataSource = new typeorm.DataSource({
+let dataSource = new typeorm.DataSource({
     type: "mysql",
     host: "localhost",
     port: 3306,
@@ -72,49 +73,104 @@ dataSource.initialize().then(function(){
 
     var userRepository = dataSource.getRepository("user");
     var monsterRepository = dataSource.getRepository("monster");
+    var roleRepository = dataSource.getRepository("role");
 
     // On connection
     io.on('connection', (socket) => {
 
         console.log(`User connected: ${socket.id}`);
 
-        socket.on("register_user", (user, cb) =>{
-            try{
-                userRepository.save(user);
-                cb(1)
+        socket.on("register_user", async (user, cb) => {
+            try {
+                const hashedPassword = bcrypt.hashSync(user.password, 10);
+                user.password = hashedPassword;
+        
+                // Check if the user already exists
+                const existingUser = await userRepository.findOne({
+                    where: [{ username: user.username }, { email: user.email }]
+                });
+        
+                if (existingUser) {
+                    // User with the same username or email already exists
+                    cb(2);
+                    return;
+                }
+        
+                // Find the user role
+                const userRole = await roleRepository.findOne({ where: [{name: "user" }]});
+        
+                // Assign the role to the user
+                user.role = userRole;
+        
+                // Save the new user
+                await userRepository.save(user);
+        
+                // Callback with success status
+                cb(1);
+            } catch (error) {
+                console.error("Error during user registration:", error);
+                // Callback with failure status
+                cb(0);
             }
-            catch{
-                cb(0)
-            }
-
         });
-
-
+        
+        
+        
         socket.on("login_user", (user, cb) => {
+            // Get the user repository from the data source
             var userRepository = dataSource.getRepository("user");
-            userRepository.findOneBy({username: user.username}).then(function(user){
-                if(user != null){
-                    userRepository.findOneBy({username: user.username, password: user.password}).then(function(user){
-                        if(user != null){
-                            let userDTO = {
-                                id: user.id,
-                                username: user.username,
-                                email: user.email,
-                                wins: user.wins,
-                                losses: user.losses
+        
+            // Find a user by username in the database
+            userRepository
+                .createQueryBuilder("user")
+                .leftJoinAndSelect("user.role", "role") // Perform a left join on the 'role' relation
+                .where("user.username = :username", { username: user.username })
+                .getOne()
+                .then(function (dbUser) {
+                    // Check if a user with the provided username exists
+                    if (dbUser) {
+                        // Compare the entered password with the hashed password in the database
+                        bcrypt.compare(user.password, dbUser.password).then(function (passwordMatch) {
+                            // Check if the passwords match
+                            if (passwordMatch) {
+                                // Create a userDTO object with selected user information
+                                let userDTO = {
+                                    id: dbUser.id,
+                                    username: dbUser.username,
+                                    email: dbUser.email,
+                                    wins: dbUser.wins,
+                                    losses: dbUser.losses,
+                                    role: dbUser.role,
+                                };
+                                console.log(userDTO);
+
+                                // Call the callback with the userDTO
+                                cb(userDTO);
+                            } else {
+                                // Call back '0' the username and password do not match
+                                cb(0);
                             }
-                            cb(userDTO);
-                        }
-                        else{
-                            cb('0');
-                        }
-                    })
-                }
-                else{
+                        }).catch(function (error) {
+                            // Handle errors during password comparison
+                            console.error("Error comparing passwords:", error);
+                            // Call the callback with '0' to indicate a failed login attempt
+                            cb(9);
+                        });
+                    } else {
+                        // Call back '0' the username was not found
+                        cb(0);
+                    }
+                })
+                .catch(function (error) {
+                    // Handle errors during user lookup
+                    console.error("Error finding user:", error);
+                    // Call the callback with '0' to indicate a failed login attempt
                     cb('0');
-                }
-            })
+                });
         });
+        
+
+        
 
         socket.on("create_battle", (user, cb) => {
             let battleId = generateRandomString();
@@ -217,6 +273,7 @@ dataSource.initialize().then(function(){
             }
         });
 
+        // Use later for back and for chatting in rooms
         // socket.on('send_message', (data) => {
         //     let message = `${data.userId}: ${data.message}`;
         //     socket.to(data.room).emit('receive_message', message);
