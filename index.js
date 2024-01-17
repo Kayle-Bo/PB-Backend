@@ -26,7 +26,7 @@ const io = new Server(server, {
 
 let battleRooms = [];
 
-var dataSource = new typeorm.DataSource({
+let dataSource = new typeorm.DataSource({
     type: "mysql",
     host: "localhost",
     port: 3306,
